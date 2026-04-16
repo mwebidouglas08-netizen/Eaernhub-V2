@@ -1,8 +1,7 @@
 'use strict';
-const Database = require('better-sqlite3');
+const sqlite3 = require('sqlite3').verbose();
 const bcrypt = require('bcryptjs');
 const path = require('path');
-const fs = require('fs');
 
 const DATA_DIR = process.env.RAILWAY_VOLUME_MOUNT_PATH || process.env.DATA_DIR || __dirname;
 const DB_FILE = path.join(DATA_DIR, 'earnhub.db');
@@ -11,100 +10,117 @@ let _db = null;
 
 function getDb() {
   if (_db) return _db;
-  _db = new Database(DB_FILE);
-  _db.pragma('journal_mode = WAL');
-  _db.pragma('foreign_keys = ON');
-  _initSchema(_db);
+  _db = new sqlite3.Database(DB_FILE, (err) => {
+    if (err) console.error('DB open error:', err.message);
+    else console.log('✅ Database connected:', DB_FILE);
+  });
+  _db.serialize(() => _initSchema(_db));
   return _db;
 }
 
 function _initSchema(db) {
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS settings (
-      key   TEXT PRIMARY KEY,
-      value TEXT NOT NULL
-    );
+  db.run('PRAGMA journal_mode = WAL');
+  db.run('PRAGMA foreign_keys = ON');
 
-    CREATE TABLE IF NOT EXISTS users (
-      id                INTEGER PRIMARY KEY AUTOINCREMENT,
-      username          TEXT UNIQUE NOT NULL,
-      email             TEXT UNIQUE NOT NULL,
-      password          TEXT NOT NULL,
-      country           TEXT DEFAULT 'Kenya',
-      mobile            TEXT,
-      referral_code     TEXT UNIQUE,
-      referred_by       TEXT,
-      is_activated      INTEGER DEFAULT 0,
-      is_banned         INTEGER DEFAULT 0,
-      balance           REAL DEFAULT 0,
-      total_earnings    REAL DEFAULT 0,
-      ads_earnings      REAL DEFAULT 0,
-      tiktok_earnings   REAL DEFAULT 0,
-      youtube_earnings  REAL DEFAULT 0,
-      trivia_earnings   REAL DEFAULT 0,
-      articles_earnings REAL DEFAULT 0,
-      affiliate_earnings REAL DEFAULT 0,
-      agent_bonus       REAL DEFAULT 100,
-      total_withdrawn   REAL DEFAULT 0,
-      created_at        DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
+  db.run(`CREATE TABLE IF NOT EXISTS settings (
+    key   TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+  )`);
 
-    CREATE TABLE IF NOT EXISTS admins (
-      id         INTEGER PRIMARY KEY AUTOINCREMENT,
-      username   TEXT UNIQUE NOT NULL,
-      password   TEXT NOT NULL,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
+  db.run(`CREATE TABLE IF NOT EXISTS users (
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    username          TEXT UNIQUE NOT NULL,
+    email             TEXT UNIQUE NOT NULL,
+    password          TEXT NOT NULL,
+    country           TEXT DEFAULT 'Kenya',
+    mobile            TEXT,
+    referral_code     TEXT UNIQUE,
+    referred_by       TEXT,
+    is_activated      INTEGER DEFAULT 0,
+    is_banned         INTEGER DEFAULT 0,
+    balance           REAL DEFAULT 0,
+    total_earnings    REAL DEFAULT 0,
+    ads_earnings      REAL DEFAULT 0,
+    tiktok_earnings   REAL DEFAULT 0,
+    youtube_earnings  REAL DEFAULT 0,
+    trivia_earnings   REAL DEFAULT 0,
+    articles_earnings REAL DEFAULT 0,
+    affiliate_earnings REAL DEFAULT 0,
+    agent_bonus       REAL DEFAULT 100,
+    total_withdrawn   REAL DEFAULT 0,
+    created_at        DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`);
 
-    CREATE TABLE IF NOT EXISTS notifications (
-      id         INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id    INTEGER,
-      title      TEXT NOT NULL,
-      message    TEXT NOT NULL,
-      type       TEXT DEFAULT 'info',
-      is_read    INTEGER DEFAULT 0,
-      is_global  INTEGER DEFAULT 0,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
+  db.run(`CREATE TABLE IF NOT EXISTS admins (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    username   TEXT UNIQUE NOT NULL,
+    password   TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`);
 
-    CREATE TABLE IF NOT EXISTS withdrawals (
-      id         INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id    INTEGER NOT NULL,
-      amount     REAL NOT NULL,
-      mobile     TEXT NOT NULL,
-      status     TEXT DEFAULT 'pending',
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
+  db.run(`CREATE TABLE IF NOT EXISTS notifications (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id    INTEGER,
+    title      TEXT NOT NULL,
+    message    TEXT NOT NULL,
+    type       TEXT DEFAULT 'info',
+    is_read    INTEGER DEFAULT 0,
+    is_global  INTEGER DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`);
 
-    CREATE TABLE IF NOT EXISTS payments (
-      id         INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id    INTEGER NOT NULL,
-      amount     REAL NOT NULL,
-      phone      TEXT NOT NULL,
-      type       TEXT DEFAULT 'activation',
-      status     TEXT DEFAULT 'pending',
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-  `);
+  db.run(`CREATE TABLE IF NOT EXISTS withdrawals (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id    INTEGER NOT NULL,
+    amount     REAL NOT NULL,
+    mobile     TEXT NOT NULL,
+    status     TEXT DEFAULT 'pending',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`);
 
-  // Seed default settings
-  const insertSetting = db.prepare(`INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)`);
+  db.run(`CREATE TABLE IF NOT EXISTS payments (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id    INTEGER NOT NULL,
+    amount     REAL NOT NULL,
+    phone      TEXT NOT NULL,
+    type       TEXT DEFAULT 'activation',
+    status     TEXT DEFAULT 'pending',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`);
+
   const defaults = {
-    activation_fee: '300',
-    site_name: 'EarnHub',
-    referral_bonus: '50',
-    min_withdrawal: '500',
-    welcome_bonus: '0',
-    maintenance_mode: 'false'
+    activation_fee: '300', site_name: 'EarnHub',
+    referral_bonus: '50', min_withdrawal: '500',
+    welcome_bonus: '0', maintenance_mode: 'false'
   };
-  for (const [k, v] of Object.entries(defaults)) insertSetting.run(k, v);
-
-  // Seed default admin
-  if (!db.prepare(`SELECT id FROM admins WHERE username = ?`).get('admin')) {
-    const hash = bcrypt.hashSync('Admin@2024', 10);
-    db.prepare(`INSERT INTO admins (username, password) VALUES (?, ?)`).run('admin', hash);
-    console.log('✅ Default admin: admin / Admin@2024');
+  for (const [k, v] of Object.entries(defaults)) {
+    db.run(`INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)`, [k, v]);
   }
+
+  const hash = bcrypt.hashSync('Admin@2024', 10);
+  db.run(`INSERT OR IGNORE INTO admins (username, password) VALUES (?, ?)`, ['admin', hash], function(err) {
+    if (!err && this.changes > 0) console.log('✅ Default admin created: admin / Admin@2024');
+  });
 }
 
-module.exports = { getDb };
+function dbGet(sql, params = []) {
+  return new Promise((resolve, reject) => {
+    getDb().get(sql, params, (err, row) => { if (err) reject(err); else resolve(row); });
+  });
+}
+
+function dbAll(sql, params = []) {
+  return new Promise((resolve, reject) => {
+    getDb().all(sql, params, (err, rows) => { if (err) reject(err); else resolve(rows); });
+  });
+}
+
+function dbRun(sql, params = []) {
+  return new Promise((resolve, reject) => {
+    getDb().run(sql, params, function(err) {
+      if (err) reject(err); else resolve({ lastID: this.lastID, changes: this.changes });
+    });
+  });
+}
+
+module.exports = { getDb, dbGet, dbAll, dbRun };
