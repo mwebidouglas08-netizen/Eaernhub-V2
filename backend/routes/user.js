@@ -1,43 +1,42 @@
 'use strict';
 const router = require('express').Router();
-const { getDb } = require('../db');
+const { dbGet, dbAll, dbRun } = require('../db');
 const { requireActivated } = require('../middleware/auth');
 
-/* ── WITHDRAW ── */
-router.post('/withdraw', requireActivated, (req, res) => {
+router.post('/withdraw', requireActivated, async (req, res) => {
   const { amount, mobile } = req.body;
   if (!amount || !mobile) return res.json({ success: false, message: 'Amount and phone required.' });
-  const db = getDb();
-  const minW = parseFloat(db.prepare("SELECT value FROM settings WHERE key='min_withdrawal'").get()?.value || 500);
-  const user = db.prepare('SELECT balance FROM users WHERE id=?').get(req.session.userId);
-  const amt = parseFloat(amount);
-  if (!user || user.balance < amt) return res.json({ success: false, message: 'Insufficient balance.' });
-  if (amt < minW) return res.json({ success: false, message: `Minimum withdrawal is KES ${minW}.` });
-  db.prepare('UPDATE users SET balance=balance-? WHERE id=?').run(amt, req.session.userId);
-  db.prepare('INSERT INTO withdrawals (user_id,amount,mobile) VALUES (?,?,?)').run(req.session.userId, amt, mobile);
-  return res.json({ success: true, message: 'Withdrawal request submitted! Processed within 24hrs.' });
+  try {
+    const minRow = await dbGet("SELECT value FROM settings WHERE key='min_withdrawal'");
+    const minW = parseFloat(minRow?.value || 500);
+    const user = await dbGet('SELECT balance FROM users WHERE id=?', [req.session.userId]);
+    const amt = parseFloat(amount);
+    if (!user || user.balance < amt) return res.json({ success: false, message: 'Insufficient balance.' });
+    if (amt < minW) return res.json({ success: false, message: `Minimum withdrawal is KES ${minW}.` });
+    await dbRun('UPDATE users SET balance=balance-? WHERE id=?', [amt, req.session.userId]);
+    await dbRun('INSERT INTO withdrawals (user_id,amount,mobile) VALUES (?,?,?)', [req.session.userId, amt, mobile]);
+    return res.json({ success: true, message: 'Withdrawal request submitted! Processed within 24hrs.' });
+  } catch (e) {
+    console.error('Withdraw error:', e.message);
+    return res.json({ success: false, message: 'Withdrawal failed. Try again.' });
+  }
 });
 
-/* ── VOUCHER ── */
-router.post('/voucher', requireActivated, (req, res) => {
+router.post('/voucher', requireActivated, async (req, res) => {
   return res.json({ success: false, message: 'Invalid or expired voucher code.' });
 });
 
-/* ── DOWNLINES ── */
-router.get('/downlines', requireActivated, (req, res) => {
-  const db = getDb();
-  const user = db.prepare('SELECT referral_code FROM users WHERE id=?').get(req.session.userId);
-  const downlines = db.prepare('SELECT username,country,created_at FROM users WHERE referred_by=? ORDER BY created_at DESC').all(user?.referral_code || '');
+router.get('/downlines', requireActivated, async (req, res) => {
+  const user = await dbGet('SELECT referral_code FROM users WHERE id=?', [req.session.userId]);
+  const downlines = await dbAll('SELECT username,country,created_at FROM users WHERE referred_by=? ORDER BY created_at DESC', [user?.referral_code || '']);
   return res.json({ success: true, downlines });
 });
 
-/* ── SPIN ── */
-router.post('/spin', requireActivated, (req, res) => {
+router.post('/spin', requireActivated, async (req, res) => {
   const prizes = [0, 0, 0, 5, 0, 10, 0, 20, 0, 5];
   const prize = prizes[Math.floor(Math.random() * prizes.length)];
   if (prize > 0) {
-    const db = getDb();
-    db.prepare('UPDATE users SET balance=balance+?,total_earnings=total_earnings+? WHERE id=?').run(prize, prize, req.session.userId);
+    await dbRun('UPDATE users SET balance=balance+?,total_earnings=total_earnings+? WHERE id=?', [prize, prize, req.session.userId]);
   }
   return res.json({ success: true, prize, message: prize > 0 ? `🎉 You won KES ${prize}!` : 'Better luck next time!' });
 });
