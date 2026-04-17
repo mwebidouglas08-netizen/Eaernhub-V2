@@ -3,35 +3,35 @@
 <head>
 <meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/>
 <title>EarnHub – Create Account</title>
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
 <style>
-:root{--gold:#F5C518;--gd:#D4A017;--green:#00C853;--dark:#08111F;--card:#121E30;--border:rgba(245,197,24,.14);--text:#E8EAF0;--muted:#6B7280;--red:#EF5350;}
+:root{--gold:#E8900A;--gold-light:#FFF3DC;--dark:#0F172A;--body:#F8FAFC;--card:#fff;--border:#E2E8F0;--text:#1E293B;--muted:#64748B;--red:#DC2626;--green:#16A34A;}
 *{margin:0;padding:0;box-sizing:border-box;}
-body{background:var(--dark);color:var(--text);font-family:'Inter',sans-serif;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:1rem;background-image:radial-gradient(ellipse 65% 50% at 50% 0%,rgba(245,197,24,.07) 0%,transparent 68%);}
-.card{background:var(--card);border:1px solid var(--border);border-radius:20px;padding:2.5rem 2rem;width:100%;max-width:480px;}
-.logo{font-family:'Space Grotesk',sans-serif;font-size:1.75rem;font-weight:800;color:var(--gold);text-align:center;margin-bottom:.2rem;}
-.logo span{color:var(--green);}
-.tagline{text-align:center;font-weight:600;font-size:.95rem;margin-bottom:.2rem;}
-.sub{text-align:center;color:var(--muted);font-size:.84rem;margin-bottom:1.8rem;}
+body{background:var(--body);color:var(--text);font-family:'Plus Jakarta Sans',sans-serif;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:1.5rem;background-image:radial-gradient(ellipse 70% 50% at 50% -10%,rgba(232,144,10,.08) 0%,transparent 70%);}
+.card{background:var(--card);border-radius:22px;padding:2.5rem 2rem;width:100%;max-width:500px;box-shadow:0 8px 40px rgba(0,0,0,.1);}
+.logo{font-size:1.6rem;font-weight:800;color:var(--dark);text-align:center;margin-bottom:.2rem;}
+.logo span{color:var(--gold);}
+.tagline{text-align:center;font-weight:700;font-size:.97rem;margin-bottom:.2rem;color:var(--dark);}
+.sub{text-align:center;color:var(--muted);font-size:.83rem;margin-bottom:1.8rem;}
 .fg{margin-bottom:1rem;}
-label{font-size:.83rem;font-weight:500;margin-bottom:.35rem;display:block;}
-input,select{width:100%;padding:.7rem 1rem;background:rgba(255,255,255,.05);border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:.88rem;outline:none;transition:border-color .2s;font-family:'Inter',sans-serif;}
-input:focus,select:focus{border-color:var(--gold);}
-input::placeholder{color:var(--muted);}
-select option{background:var(--card);}
+label{font-size:.82rem;font-weight:600;margin-bottom:.35rem;display:block;}
+input,select{width:100%;padding:.72rem 1rem;background:var(--body);border:1.5px solid var(--border);border-radius:10px;color:var(--text);font-size:.88rem;outline:none;transition:border-color .2s;font-family:'Plus Jakarta Sans',sans-serif;}
+input:focus,select:focus{border-color:var(--gold);background:#fff;}
+input::placeholder{color:#CBD5E1;}
+select option{background:#fff;}
 .ph-row{display:flex;gap:.5rem;}
-.ph-pre{padding:.7rem .85rem;background:rgba(255,255,255,.08);border:1px solid var(--border);border-radius:10px;color:var(--muted);font-size:.88rem;white-space:nowrap;}
+.ph-pre{padding:.72rem .85rem;background:#F1F5F9;border:1.5px solid var(--border);border-radius:10px;color:var(--muted);font-size:.88rem;white-space:nowrap;font-weight:600;}
 .chk-row{display:flex;align-items:flex-start;gap:.6rem;margin:.9rem 0;}
-.chk-row input[type=checkbox]{width:auto;margin-top:2px;}
-.chk-row label{font-size:.84rem;color:var(--muted);}
-.btn{width:100%;padding:.85rem;background:var(--gold);color:#08111F;font-weight:700;border:none;border-radius:10px;font-size:.97rem;cursor:pointer;font-family:'Space Grotesk',sans-serif;transition:all .2s;}
-.btn:hover{background:var(--gd);transform:translateY(-1px);}
-.btn:disabled{opacity:.6;cursor:not-allowed;transform:none;}
+.chk-row input[type=checkbox]{width:auto;margin-top:3px;accent-color:var(--gold);}
+.chk-row label{font-size:.83rem;color:var(--muted);}
+.btn{width:100%;padding:.85rem;background:var(--gold);color:#fff;font-weight:700;border:none;border-radius:10px;font-size:.97rem;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;transition:all .2s;}
+.btn:hover{background:#C97D08;transform:translateY(-1px);box-shadow:0 4px 14px rgba(232,144,10,.35);}
+.btn:disabled{opacity:.6;cursor:not-allowed;transform:none;box-shadow:none;}
 .lrow{text-align:center;margin-top:1rem;font-size:.88rem;color:var(--muted);}
-.lrow a{color:var(--gold);font-weight:500;}
-.alert{padding:.7rem 1rem;border-radius:8px;font-size:.88rem;margin-bottom:.9rem;display:none;}
-.alert.error{background:rgba(239,83,80,.1);border:1px solid rgba(239,83,80,.3);color:var(--red);}
-.alert.success{background:rgba(0,200,83,.1);border:1px solid rgba(0,200,83,.3);color:var(--green);}
+.lrow a{color:var(--gold);font-weight:600;}
+.alert{padding:.7rem 1rem;border-radius:9px;font-size:.87rem;margin-bottom:.9rem;display:none;font-weight:500;}
+.alert.error{background:#FEF2F2;border:1.5px solid #FECACA;color:var(--red);}
+.alert.success{background:#F0FDF4;border:1.5px solid #BBF7D0;color:var(--green);}
 </style>
 </head>
 <body>
@@ -42,8 +42,7 @@ select option{background:var(--card);}
   <div id="alert" class="alert"></div>
   <div class="fg"><label>Username</label><input type="text" id="username" placeholder="e.g., john123" autocomplete="username"/></div>
   <div class="fg"><label>Email Address</label><input type="email" id="email" placeholder="e.g., johndoe@gmail.com" autocomplete="email"/></div>
-  <div class="fg">
-    <label>Country</label>
+  <div class="fg"><label>Country</label>
     <select id="country">
       <option value="Kenya">🇰🇪 Kenya</option>
       <option value="Uganda">🇺🇬 Uganda</option>
@@ -54,8 +53,7 @@ select option{background:var(--card);}
       <option value="Other">🌍 Other</option>
     </select>
   </div>
-  <div class="fg">
-    <label>Mobile Number</label>
+  <div class="fg"><label>Mobile Number</label>
     <div class="ph-row">
       <div class="ph-pre">+254</div>
       <input type="tel" id="mobile" placeholder="e.g., 712345678" style="flex:1" maxlength="9"/>
@@ -65,7 +63,7 @@ select option{background:var(--card);}
   <div class="fg"><label>Confirm Password</label><input type="password" id="cpassword" placeholder="Confirm your password" autocomplete="new-password"/></div>
   <div class="fg" id="refWrap" style="display:none;"><label>Referral Code (optional)</label><input type="text" id="referral" placeholder="Enter referral code"/></div>
   <div class="chk-row"><input type="checkbox" id="agree"/><label for="agree">I agree to the <a href="#" style="color:var(--gold);">Terms &amp; Conditions</a>.</label></div>
-  <button class="btn" id="btn" onclick="doRegister()">Create Account</button>
+  <button class="btn" id="btn" onclick="doRegister()">Create Account →</button>
   <div class="lrow">Already have an account? <a href="/login">Sign In</a></div>
 </div>
 <script>
@@ -90,8 +88,8 @@ async function doRegister(){
     const r=await fetch('/api/auth/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username,email,country,mobile,password,confirm_password:cpassword,referral})});
     const d=await r.json();
     if(d.success){show(d.message,'success');setTimeout(()=>window.location.href='/login',1400);}
-    else{show(d.message,'error');btn.disabled=false;btn.textContent='Create Account';}
-  }catch{show('Network error. Try again.','error');btn.disabled=false;btn.textContent='Create Account';}
+    else{show(d.message,'error');btn.disabled=false;btn.textContent='Create Account →';}
+  }catch{show('Network error. Try again.','error');btn.disabled=false;btn.textContent='Create Account →';}
 }
 function show(m,t){const e=document.getElementById('alert');e.textContent=m;e.className='alert '+t;e.style.display='block';}
 </script>
