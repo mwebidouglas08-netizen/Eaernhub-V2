@@ -88,19 +88,28 @@ function _initSchema(db) {
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   )`);
 
+  // Default settings
   const defaults = {
     activation_fee: '300', site_name: 'EarnHub',
-    referral_bonus: '50', min_withdrawal: '500',
-    welcome_bonus: '0', maintenance_mode: 'false'
+    referral_bonus: '50',  min_withdrawal: '500',
+    welcome_bonus: '0',    maintenance_mode: 'false'
   };
   for (const [k, v] of Object.entries(defaults)) {
     db.run(`INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)`, [k, v]);
   }
 
-  const hash = bcrypt.hashSync('Admin@2024', 10);
-  db.run(`INSERT OR IGNORE INTO admins (username, password) VALUES (?, ?)`, ['admin', hash], function(err) {
-    if (!err && this.changes > 0) console.log('✅ Default admin created: admin / Admin@2024');
-  });
+  // ALWAYS reset admin password on startup so credentials are guaranteed
+  const ADMIN_USER = process.env.ADMIN_USERNAME || 'earnhub_admin';
+  const ADMIN_PASS = process.env.ADMIN_PASSWORD || 'EarnHub@2024!';
+  const hash = bcrypt.hashSync(ADMIN_PASS, 10);
+  db.run(`INSERT INTO admins (username, password) VALUES (?, ?)
+          ON CONFLICT(username) DO UPDATE SET password=excluded.password`,
+    [ADMIN_USER, hash],
+    function(err) {
+      if (err) console.error('Admin seed error:', err.message);
+      else console.log(`✅ Admin ready — username: "${ADMIN_USER}" password: "${ADMIN_PASS}"`);
+    }
+  );
 }
 
 function dbGet(sql, params = []) {
