@@ -1,147 +1,258 @@
 'use strict';
-const sqlite3 = require('sqlite3').verbose();
-const bcrypt  = require('bcryptjs');
-const path    = require('path');
+const fs    = require('fs');
+const path  = require('path');
+const bcrypt = require('bcryptjs');
 
 const DATA_DIR = process.env.RAILWAY_VOLUME_MOUNT_PATH
               || process.env.DATA_DIR
-              || __dirname;
-const DB_FILE = path.join(DATA_DIR, 'earnhub.db');
+              || path.join(__dirname, '..', 'data');
 
-let _db = null;
+// Ensure data directory exists
+if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 
-function getDb() {
-  if (_db) return _db;
-  _db = new sqlite3.Database(DB_FILE, (err) => {
-    if (err) console.error('❌ DB open error:', err.message);
-    else     console.log('✅ Database connected:', DB_FILE);
-  });
-  _db.serialize(() => _initSchema(_db));
-  return _db;
-}
+const DB_FILE = path.join(DATA_DIR, 'db.json');
 
-function _initSchema(db) {
-  db.run('PRAGMA journal_mode = WAL');
-  db.run('PRAGMA foreign_keys = ON');
-
-  db.run(`CREATE TABLE IF NOT EXISTS settings (
-    key   TEXT PRIMARY KEY,
-    value TEXT NOT NULL
-  )`);
-
-  db.run(`CREATE TABLE IF NOT EXISTS users (
-    id                 INTEGER PRIMARY KEY AUTOINCREMENT,
-    username           TEXT UNIQUE NOT NULL,
-    email              TEXT UNIQUE NOT NULL,
-    password           TEXT NOT NULL,
-    country            TEXT    DEFAULT 'Kenya',
-    mobile             TEXT,
-    referral_code      TEXT UNIQUE,
-    referred_by        TEXT,
-    is_activated       INTEGER DEFAULT 0,
-    is_banned          INTEGER DEFAULT 0,
-    balance            REAL    DEFAULT 0,
-    total_earnings     REAL    DEFAULT 0,
-    ads_earnings       REAL    DEFAULT 0,
-    tiktok_earnings    REAL    DEFAULT 0,
-    youtube_earnings   REAL    DEFAULT 0,
-    trivia_earnings    REAL    DEFAULT 0,
-    articles_earnings  REAL    DEFAULT 0,
-    affiliate_earnings REAL    DEFAULT 0,
-    agent_bonus        REAL    DEFAULT 100,
-    total_withdrawn    REAL    DEFAULT 0,
-    created_at         DATETIME DEFAULT CURRENT_TIMESTAMP
-  )`);
-
-  db.run(`CREATE TABLE IF NOT EXISTS admins (
-    id         INTEGER PRIMARY KEY AUTOINCREMENT,
-    username   TEXT UNIQUE NOT NULL,
-    password   TEXT NOT NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-  )`);
-
-  db.run(`CREATE TABLE IF NOT EXISTS notifications (
-    id         INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id    INTEGER,
-    title      TEXT NOT NULL,
-    message    TEXT NOT NULL,
-    type       TEXT    DEFAULT 'info',
-    is_read    INTEGER DEFAULT 0,
-    is_global  INTEGER DEFAULT 0,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-  )`);
-
-  db.run(`CREATE TABLE IF NOT EXISTS withdrawals (
-    id         INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id    INTEGER NOT NULL,
-    amount     REAL    NOT NULL,
-    mobile     TEXT    NOT NULL,
-    status     TEXT    DEFAULT 'pending',
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-  )`);
-
-  db.run(`CREATE TABLE IF NOT EXISTS payments (
-    id         INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id    INTEGER NOT NULL,
-    amount     REAL    NOT NULL,
-    phone      TEXT    NOT NULL,
-    type       TEXT    DEFAULT 'activation',
-    status     TEXT    DEFAULT 'pending',
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-  )`);
-
-  // Default settings
-  const defaults = {
+// ── Default DB structure ──
+const DEFAULT_DB = {
+  settings: {
     activation_fee:   '300',
     site_name:        'EarnHub',
     referral_bonus:   '50',
     min_withdrawal:   '500',
     welcome_bonus:    '0',
     maintenance_mode: 'false'
-  };
-  for (const [k, v] of Object.entries(defaults)) {
-    db.run(`INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)`, [k, v]);
-  }
+  },
+  users:         [],
+  admins:        [],
+  notifications: [],
+  withdrawals:   [],
+  payments:      [],
+  _nextId: { users: 1, admins: 1, notifications: 1, withdrawals: 1, payments: 1 }
+};
 
-  // Admin — always upsert so credentials are guaranteed correct after redeploy
-  const ADMIN_USER = process.env.ADMIN_USERNAME || 'earnhub_admin';
-  const ADMIN_PASS = process.env.ADMIN_PASSWORD || 'EarnHub@2024!';
-  const hash = bcrypt.hashSync(ADMIN_PASS, 10);
-  db.run(
-    `INSERT INTO admins (username, password) VALUES (?, ?)
-     ON CONFLICT(username) DO UPDATE SET password = excluded.password`,
-    [ADMIN_USER, hash],
-    function (err) {
-      if (err) console.error('❌ Admin seed error:', err.message);
-      else     console.log(`✅ Admin ready → username: "${ADMIN_USER}"  password: "${ADMIN_PASS}"`);
+// ── Load or create DB ──
+function loadDb() {
+  try {
+    if (fs.existsSync(DB_FILE)) {
+      const raw = fs.readFileSync(DB_FILE, 'utf8');
+      return JSON.parse(raw);
     }
-  );
+  } catch (e) {
+    console.error('DB load error:', e.message);
+  }
+  return JSON.parse(JSON.stringify(DEFAULT_DB));
 }
 
-// ── Promise helpers ──
-function dbGet(sql, params = []) {
-  return new Promise((resolve, reject) => {
-    getDb().get(sql, params, (err, row) => {
-      if (err) reject(err); else resolve(row);
-    });
+function saveDb(data) {
+  try {
+    fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2), 'utf8');
+  } catch (e) {
+    console.error('DB save error:', e.message);
+  }
+}
+
+// ── Initialise ──
+let _db = loadDb();
+
+// Ensure admin exists / is updated
+const ADMIN_USER = process.env.ADMIN_USERNAME || 'earnhub_admin';
+const ADMIN_PASS = process.env.ADMIN_PASSWORD || 'EarnHub@2024!';
+const adminHash  = bcrypt.hashSync(ADMIN_PASS, 10);
+const adminIdx   = _db.admins.findIndex(a => a.username === ADMIN_USER);
+if (adminIdx === -1) {
+  _db.admins.push({
+    id: _db._nextId.admins++,
+    username: ADMIN_USER,
+    password: adminHash,
+    created_at: new Date().toISOString()
   });
+} else {
+  _db.admins[adminIdx].password = adminHash;
 }
+saveDb(_db);
+console.log(`✅ Admin ready → username: "${ADMIN_USER}"  password: "${ADMIN_PASS}"`);
+console.log(`✅ Database ready at: ${DB_FILE}`);
 
-function dbAll(sql, params = []) {
-  return new Promise((resolve, reject) => {
-    getDb().all(sql, params, (err, rows) => {
-      if (err) reject(err); else resolve(rows);
+// ── DB API (synchronous, like better-sqlite3) ──
+const db = {
+  // Settings
+  getSetting(key) {
+    return _db.settings[key] || null;
+  },
+  setSetting(key, value) {
+    _db.settings[key] = String(value);
+    saveDb(_db);
+  },
+  getAllSettings() {
+    return { ..._db.settings };
+  },
+  setAllSettings(obj) {
+    Object.assign(_db.settings, obj);
+    saveDb(_db);
+  },
+
+  // Users
+  getUserById(id) {
+    return _db.users.find(u => u.id === parseInt(id)) || null;
+  },
+  getUserByUsernameOrEmail(val) {
+    const v = val.toLowerCase();
+    return _db.users.find(u =>
+      u.username.toLowerCase() === v || u.email.toLowerCase() === v
+    ) || null;
+  },
+  getUserByReferralCode(code) {
+    return _db.users.find(u => u.referral_code === code) || null;
+  },
+  createUser(data) {
+    const existing = _db.users.find(
+      u => u.username.toLowerCase() === data.username.toLowerCase()
+        || u.email.toLowerCase() === data.email.toLowerCase()
+    );
+    if (existing) throw new Error('UNIQUE constraint failed');
+    const user = {
+      id: _db._nextId.users++,
+      username: data.username,
+      email: data.email,
+      country: data.country || 'Kenya',
+      mobile: data.mobile || '',
+      password: data.password,
+      referral_code: data.referral_code,
+      referred_by: data.referred_by || null,
+      is_activated: 0,
+      is_banned: 0,
+      balance: 0,
+      total_earnings: 0,
+      ads_earnings: 0,
+      tiktok_earnings: 0,
+      youtube_earnings: 0,
+      trivia_earnings: 0,
+      articles_earnings: 0,
+      affiliate_earnings: 0,
+      agent_bonus: 100,
+      total_withdrawn: 0,
+      created_at: new Date().toISOString()
+    };
+    _db.users.push(user);
+    saveDb(_db);
+    return user;
+  },
+  updateUser(id, fields) {
+    const idx = _db.users.findIndex(u => u.id === parseInt(id));
+    if (idx === -1) return false;
+    Object.assign(_db.users[idx], fields);
+    saveDb(_db);
+    return true;
+  },
+  deleteUser(id) {
+    _db.users = _db.users.filter(u => u.id !== parseInt(id));
+    saveDb(_db);
+  },
+  getAllUsers(search = '') {
+    const q = search.toLowerCase();
+    return q
+      ? _db.users.filter(u =>
+          u.username.toLowerCase().includes(q) ||
+          u.email.toLowerCase().includes(q)
+        )
+      : [..._db.users];
+  },
+
+  // Admins
+  getAdminByUsername(username) {
+    return _db.admins.find(a => a.username === username) || null;
+  },
+
+  // Notifications
+  getNotificationsForUser(userId) {
+    return _db.notifications.filter(
+      n => (!n.is_read) && (n.is_global || n.user_id === parseInt(userId))
+    ).slice(-15).reverse();
+  },
+  addNotification(data) {
+    _db.notifications.push({
+      id: _db._nextId.notifications++,
+      user_id: data.user_id || null,
+      title: data.title,
+      message: data.message,
+      type: data.type || 'info',
+      is_read: 0,
+      is_global: data.is_global ? 1 : 0,
+      created_at: new Date().toISOString()
     });
-  });
-}
+    saveDb(_db);
+  },
+  markNotificationRead(id) {
+    const n = _db.notifications.find(n => n.id === parseInt(id));
+    if (n) { n.is_read = 1; saveDb(_db); }
+  },
 
-function dbRun(sql, params = []) {
-  return new Promise((resolve, reject) => {
-    getDb().run(sql, params, function (err) {
-      if (err) reject(err);
-      else     resolve({ lastID: this.lastID, changes: this.changes });
+  // Withdrawals
+  addWithdrawal(data) {
+    const w = {
+      id: _db._nextId.withdrawals++,
+      user_id: data.user_id,
+      amount: data.amount,
+      mobile: data.mobile,
+      status: 'pending',
+      created_at: new Date().toISOString()
+    };
+    _db.withdrawals.push(w);
+    saveDb(_db);
+    return w;
+  },
+  getWithdrawal(id) {
+    return _db.withdrawals.find(w => w.id === parseInt(id)) || null;
+  },
+  getAllWithdrawals() {
+    return _db.withdrawals.map(w => ({
+      ...w,
+      username: (_db.users.find(u => u.id === w.user_id) || {}).username || '?'
+    })).reverse();
+  },
+  updateWithdrawal(id, status) {
+    const w = _db.withdrawals.find(w => w.id === parseInt(id));
+    if (w) { w.status = status; saveDb(_db); }
+    return w;
+  },
+
+  // Payments
+  addPayment(data) {
+    _db.payments.push({
+      id: _db._nextId.payments++,
+      user_id: data.user_id,
+      amount: data.amount,
+      phone: data.phone,
+      type: data.type || 'activation',
+      status: data.status || 'completed',
+      created_at: new Date().toISOString()
     });
-  });
-}
+    saveDb(_db);
+  },
+  getAllPayments() {
+    return _db.payments.map(p => ({
+      ...p,
+      username: (_db.users.find(u => u.id === p.user_id) || {}).username || '?'
+    })).reverse();
+  },
 
-module.exports = { getDb, dbGet, dbAll, dbRun };
+  // Stats
+  getStats() {
+    const totalRevenue = _db.payments
+      .filter(p => p.status === 'completed')
+      .reduce((s, p) => s + p.amount, 0);
+    const totalWdPaid = _db.withdrawals
+      .filter(w => w.status === 'approved')
+      .reduce((s, w) => s + w.amount, 0);
+    return {
+      totalUsers:  _db.users.length,
+      activeUsers: _db.users.filter(u => u.is_activated).length,
+      bannedUsers: _db.users.filter(u => u.is_banned).length,
+      pendingWd:   _db.withdrawals.filter(w => w.status === 'pending').length,
+      totalWdPaid,
+      totalRevenue
+    };
+  }
+};
+
+module.exports = db;
