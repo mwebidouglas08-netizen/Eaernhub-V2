@@ -1,7 +1,7 @@
 'use strict';
 const router = require('express').Router();
 const { dbGet, dbAll, dbRun } = require('../db');
-const { requireActivated } = require('../middleware/auth');
+const { requireActivated } = require('../middlewares/auth');
 
 router.post('/withdraw', requireActivated, async (req, res) => {
   const { amount, mobile } = req.body;
