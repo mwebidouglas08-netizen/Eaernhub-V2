@@ -2,7 +2,7 @@
 const router = require('express').Router();
 const bcrypt = require('bcryptjs');
 const { dbGet, dbAll, dbRun } = require('../db');
-const { requireAdmin } = require('../middleware/auth');
+const { requireAdmin } = require('../middlewares/auth');
 
 router.post('/login', async (req, res) => {
   const { username, password } = req.body;
